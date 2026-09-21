@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		86162E5A3060632700676D5D /* ParseSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 86162E593060632700676D5D /* ParseSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		86162E0830605BC500676D5D /* Project2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Project2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				86162E5A3060632700676D5D /* ParseSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +83,7 @@
 			);
 			name = Project2;
 			packageProductDependencies = (
+				86162E593060632700676D5D /* ParseSwift */,
 			);
 			productName = Project2;
 			productReference = 86162E0830605BC500676D5D /* Project2.app */;
@@ -107,6 +113,9 @@
 			);
 			mainGroup = 86162DFF30605BC500676D5D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				86162E583060632600676D5D /* XCRemoteSwiftPackageReference "Parse-Swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 86162E0930605BC500676D5D /* Products */;
 			projectDirPath = "";
@@ -148,6 +157,8 @@
 				DEVELOPMENT_TEAM = 4966QQ7D9X;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Project2/Info.plist;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your photo's location information to show where your posts were taken";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "We need access to your photo library to upload images to your posts";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -180,6 +191,8 @@
 				DEVELOPMENT_TEAM = 4966QQ7D9X;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Project2/Info.plist;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We use your photo's location information to show where your posts were taken";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "We need access to your photo library to upload images to your posts";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -345,6 +358,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		86162E583060632600676D5D /* XCRemoteSwiftPackageReference "Parse-Swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/parse-community/Parse-Swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.14.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		86162E593060632700676D5D /* ParseSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 86162E583060632600676D5D /* XCRemoteSwiftPackageReference "Parse-Swift" */;
+			productName = ParseSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 86162E0030605BC500676D5D /* Project object */;
 }
