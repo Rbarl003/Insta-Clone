@@ -1,71 +1,176 @@
-# Project 2 - *Instagram Clone*
+# Project 2 - Instagram-like Parse App
 
-Submitted by: **Ritch Barlatier**
+## Setup Instructions
 
-**Instagram Clone** is an app that allows users to create accounts, share photos with captions, and view a feed of posts from all users. Built with Parse backend integration for user authentication and data persistence.
+### 1. Install ParseSwift via Swift Package Manager
 
-Time spent: **5** hours spent in total
+1. In Xcode, g5 to **File > Add Package Dependencies...**
+2. Enter the ParseSwift repository URL: `https://github.com/parse-community/Parse-Swift`
+3. Select the latest version and click **Add Package**
+4. Make sure ParseSwift is added to your target
 
-## Required Features
+### 2. Configure Back4App Credentials
 
-The following **required** functionality is completed:
+Open `AppDelegate.swift` and replace the placeholder values with your Back4App credentials:
 
-- [x] Users see an app icon in the home screen and a styled launch screen.
-- [x] User can register a new account
-- [x] User can log in with newly created account
-- [x] App has a feed of posts when user logs in
-- [x] User can upload a new post which takes in a picture from photo library and an optional caption    
-- [x] User is able to logout    
- 
-The following **optional** features are implemented:
+```swift
+ParseSwift.initialize(
+    applicationId: "YOUR_APP_ID_HERE",        // Replace with your App ID
+    clientKey: "YOUR_CLIENT_KEY_HERE",        // Replace with your Client Key
+    serverURL: URL(string: "https://parseapi.back4app.com")!
+)
+```
 
-- [x] Users can pull to refresh their feed and see a loading indicator
-- [x] Users can infinite-scroll in their feed to see past the 10 most recent photos
-- [ ] Users can see location and time of photo upload in the feed    
-- [x] User stays logged in when app is closed and open again    
+You can find these credentials in your Back4App dashboard:
+- Go to https://www.back4app.com/
+- Select your app
+- Go to **App Settings > Security & Keys**
+- Copy the **Application ID** and **Client Key**
 
+### 3. Configure Info.plist for Photo Access
 
-The following **additional** features are implemented:
+Add the following privacy descriptions to your `Info.plist`:
 
-- [x] Async/await implementation for all Parse operations
-- [x] Modern Swift concurrency throughout the app
-- [x] Relative timestamps (e.g., "2 hours ago", "1 day ago")
-- [x] Responsive UI with activity indicators during loading
-- [x] Error handling with user-friendly alerts
-- [x] Image compression for efficient uploads
-- [x] Automatic HEIC to JPEG conversion
+```xml
+<key>NSPhotoLibraryUsageDescription</key>
+<string>We need access to your photo library to upload images</string>
+```
+
+### 4. Project Structure
+
+The project includes the following files:
+
+- **AppDelegate.swift** - Parse initialization
+- **SceneDelegate.swift** - Root view controller management (login vs feed)
+- **User.swift** - Parse User model
+- **Post.swift** - Parse Post model
+- **LoginViewController.swift** - Login and signup screen
+- **FeedViewController.swift** - Main feed with infinite scroll
+- **CreatePostViewController.swift** - Create new posts with images
+- **PostCell.swift** - Custom table view cell (embedded in FeedViewController)
+
+### 5. Features Implemented
+
+✅ **User Authentication**
+- Sign up new users
+- Log in existing users
+- Log out
+- Persist login session
+
+✅ **Posts Feed**
+- Display posts in a table view
+- Infinite scroll pagination (loads 10 posts at a time)
+- Pull to refresh
+- Show username, image, caption, and relative timestamp
+
+✅ **Create Posts**
+- Select images from photo library
+- Add captions
+- Upload to Parse
+
+### 6. Key Parse Concepts Used
+
+**Querying Posts:**
+```swift
+var query = Post.query()
+    .include("user")  // Include user data
+    .order([.descending("createdAt")])  // Sort by newest
+    .limit(10)  // Pagination
+    .skip(page * 10)
+
+let posts = try await query.find()
+```
+
+**Creating a Post:**
+```swift
+var post = Post()
+post.caption = "My caption"
+post.imageFile = ParseFile(name: "photo.jpg", data: imageData)
+post.user = User.current
+
+try await post.save()
+```
+
+**User Signup:**
+```swift
+var user = User()
+user.username = "username"
+user.password = "password"
+try await user.signup()
+```
+
+**User Login:**
+```swift
+try await User.login(username: "username", password: "password")
+```
+
+**User Logout:**
+```swift
+try await User.logout()
+```
+
+### 7. Running the App
+
+1. Make sure you've added your Back4App credentials
+2. Build and run the app
+3. You'll see the login screen
+4. Create a new account or login
+5. View the feed (will be empty initially)
+6. Tap the compose button to create a post
+7. Select an image and add a caption
+8. Posts will appear in the feed
+
+### 8. Back4App Dashboard
+
+You can view your data in the Back4App dashboard:
+- Go to **Database > Browser**
+- You'll see tables for `User` and `Post`
+- Click on each to view the stored data
+
+## Customization
+
+Feel free to extend the models with additional properties:
+
+**User.swift:**
+```swift
+var displayName: String?
+var profileImageFile: ParseFile?
+var bio: String?
+```
+
+**Post.swift:**
+```swift
+var likesCount: Int?
+var commentsCount: Int?
+var location: String?
+```
+
+## Requirements
+
+- iOS 15.0+
+- Xcode 14.0+
+- Swift 5.7+
+- ParseSwift package
+
+## Troubleshooting
+
+**Issue: "Cannot find type 'ParseSwift'"**
+- Make sure you've added the ParseSwift package via SPM
+
+**Issue: "Request failed: unauthorized"**
+- Check your App ID and Client Key are correct
+
+**Issue: Photo picker doesn't appear**
+- Make sure you've added NSPhotoLibraryUsageDescription to Info.plist
+
+**Issue: App crashes on launch**
+- Check that Parse is initialized before any Parse operations
+- Verify your serverURL is correct
+
 
 ## Video Walkthrough
 
-<div>
-    <a href="https://www.loom.com/share/f317044221454a509f3ebc14289bc9e0">
-      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/f317044221454a509f3ebc14289bc9e0-with-play.gif">
-    </a>
-</div>
+Watch a short video walkthrough of the project here:
 
-## Notes
-
-Challenges encountered while building the app:
-
-- Implementing infinite scroll with Parse pagination required careful state management to avoid duplicate posts
-- Converting async/await Parse operations while maintaining smooth UI updates
-- Handling photo library permissions and converting HEIC images to JPEG format
-- Managing session persistence to keep users logged in across app launches
-- Implementing pull-to-refresh without interfering with infinite scroll behavior
-
-## License
-
-    Copyright 2026 Ritch Barlatier
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+https://www.loom.com/share/f317044221454a509f3ebc14289bc9e0
 

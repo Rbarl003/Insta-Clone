@@ -7,8 +7,11 @@
 
 import UIKit
 import PhotosUI
+import Photos
 import ParseSwift
 import CoreLocation
+import UniformTypeIdentifiers
+import CoreImage
 
 class CreatePostViewController: UIViewController {
     
@@ -17,6 +20,7 @@ class CreatePostViewController: UIViewController {
     private var selectedAsset: PHAsset?
     private var photoMetadata: PhotoMetadata?
     private var imageLoadingIndicator: UIActivityIndicatorView?
+    private let locationManager = CLLocationManager()
     
     // MARK: - UI Elements
     private let imageView: UIImageView = {
@@ -43,6 +47,25 @@ class CreatePostViewController: UIViewController {
         textView.layer.cornerRadius = 8
         textView.translatesAutoresizingMaskIntoConstraints = false
         return textView
+    }()
+
+    private let locationStatusLabel: UILabel = {
+        let label = UILabel()
+        label.font = .preferredFont(forTextStyle: .footnote)
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.text = "Select a photo to check its location."
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
+    private let useCurrentLocationButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("Use Current Location", for: .normal)
+        button.isHidden = true
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
     }()
     
     private let postButton: UIButton = {
@@ -72,6 +95,8 @@ class CreatePostViewController: UIViewController {
         
         view.addSubview(imageView)
         view.addSubview(selectImageButton)
+        view.addSubview(locationStatusLabel)
+        view.addSubview(useCurrentLocationButton)
         view.addSubview(captionTextView)
         view.addSubview(postButton)
         
@@ -79,12 +104,19 @@ class CreatePostViewController: UIViewController {
             imageView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
             imageView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             imageView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            imageView.heightAnchor.constraint(equalToConstant: 300),
+            imageView.heightAnchor.constraint(equalToConstant: 260),
             
             selectImageButton.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 16),
             selectImageButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             
-            captionTextView.topAnchor.constraint(equalTo: selectImageButton.bottomAnchor, constant: 20),
+            locationStatusLabel.topAnchor.constraint(equalTo: selectImageButton.bottomAnchor, constant: 8),
+            locationStatusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            locationStatusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+
+            useCurrentLocationButton.topAnchor.constraint(equalTo: locationStatusLabel.bottomAnchor, constant: 4),
+            useCurrentLocationButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            captionTextView.topAnchor.constraint(equalTo: useCurrentLocationButton.bottomAnchor, constant: 12),
             captionTextView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             captionTextView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             captionTextView.heightAnchor.constraint(equalToConstant: 100),
@@ -96,28 +128,66 @@ class CreatePostViewController: UIViewController {
         ])
         
         selectImageButton.addTarget(self, action: #selector(selectImageTapped), for: .touchUpInside)
+        useCurrentLocationButton.addTarget(self, action: #selector(useCurrentLocationTapped), for: .touchUpInside)
         postButton.addTarget(self, action: #selector(postTapped), for: .touchUpInside)
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
     
     // MARK: - Actions
     @objc private func selectImageTapped() {
-        var configuration = PHPickerConfiguration(photoLibrary: .shared())
-        configuration.filter = .images
-        configuration.selectionLimit = 1
-        // Use .current to get original image data
-        // Our multi-strategy loader handles all formats (JPEG, PNG, HEIC, etc.)
-        configuration.preferredAssetRepresentationMode = .current
-        
-        let picker = PHPickerViewController(configuration: configuration)
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        guard status == .notDetermined else {
+            presentPhotoPicker()
+            return
+        }
+
+        PHPhotoLibrary.requestAuthorization(for: .readWrite) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.presentPhotoPicker()
+            }
+        }
+    }
+
+    private func presentPhotoPicker() {
+        guard UIImagePickerController.isSourceTypeAvailable(.photoLibrary) else {
+            showAlert(message: "The photo library is not available on this device.")
+            return
+        }
+
+        let picker = UIImagePickerController()
+        picker.sourceType = .photoLibrary
+        picker.mediaTypes = [UTType.image.identifier]
+        picker.allowsEditing = false
         picker.delegate = self
         present(picker, animated: true)
-        
-        print("📷 Presenting PHPicker with .current mode...")
+
+        print("📷 Presenting system photo library picker...")
+    }
+
+    @objc private func useCurrentLocationTapped() {
+        switch locationManager.authorizationStatus {
+        case .notDetermined:
+            locationManager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            locationStatusLabel.text = "Finding your current location…"
+            locationManager.requestLocation()
+        case .denied, .restricted:
+            showAlert(message: "Location access is disabled. Enable it in Settings to attach your current location.")
+        @unknown default:
+            showAlert(message: "Location access is unavailable.")
+        }
     }
     
     @objc private func postTapped() {
         guard let image = selectedImage else {
             showAlert(message: "Please select an image")
+            return
+        }
+
+
+        guard User.current != nil else {
+            showAlert(message: "Please sign in again before creating a post.")
             return
         }
         
@@ -136,6 +206,7 @@ class CreatePostViewController: UIViewController {
         view.isUserInteractionEnabled = false
         
         Task {
+            var uploadStage = "image file"
             do {
                 print("🚀 Starting post creation...")
                 
@@ -195,6 +266,7 @@ class CreatePostViewController: UIViewController {
                 print("   User: \(post.user?.username ?? "none")")
                 
                 // Save post
+                uploadStage = "post record"
                 let savedPost = try await post.save()
                 print("✅ Post saved successfully!")
                 print("   ObjectId: \(savedPost.objectId ?? "none")")
@@ -218,7 +290,7 @@ class CreatePostViewController: UIViewController {
                 await MainActor.run {
                     activityIndicator.removeFromSuperview()
                     view.isUserInteractionEnabled = true
-                    showAlert(message: "Failed to create post: \(error.localizedDescription)")
+                    showAlert(message: uploadErrorMessage(for: error, stage: uploadStage))
                 }
             }
         }
@@ -233,6 +305,55 @@ class CreatePostViewController: UIViewController {
         let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
+    }
+
+    private func uploadErrorMessage(for error: Error, stage: String) -> String {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            return "The \(stage) could not reach the server. Check your internet connection and try again."
+        }
+
+        if nsError.code == 119 || nsError.code == 142 {
+            return "The server does not allow this upload. Check the Post class permissions and file-storage settings."
+        }
+
+        let description = error.localizedDescription.lowercased()
+        if description.contains("unauthorized") || description.contains("invalid key") {
+            return "The server rejected the upload credentials. Check the Parse application ID and client key."
+        }
+
+        return "The \(stage) could not be uploaded (\(nsError.domain), code \(nsError.code)): \(error.localizedDescription)"
+    }
+}
+
+// MARK: - UIImagePickerControllerDelegate
+extension CreatePostViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    func imagePickerController(
+        _ picker: UIImagePickerController,
+        didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+    ) {
+        picker.dismiss(animated: true)
+
+        guard let image = info[.originalImage] as? UIImage else {
+            showAlert(message: "The selected photo could not be loaded.")
+            return
+        }
+
+        selectedImage = image
+        imageView.image = image
+
+        if let asset = info[.phAsset] as? PHAsset {
+            selectedAsset = asset
+            photoMetadata = PhotoMetadataHelper.extractMetadata(from: asset)
+        } else {
+            selectedAsset = nil
+            photoMetadata = nil
+        }
+        updateLocationStatus()
+    }
+
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true)
     }
 }
 
@@ -255,163 +376,228 @@ extension CreatePostViewController: PHPickerViewControllerDelegate {
         print("📷 Got item provider")
         print("📋 Available types: \(provider.registeredTypeIdentifiers)")
         
-        // ULTIMATE FIX: If we have an asset identifier, load directly from PHAsset
-        // This completely bypasses PHPicker's conversion issues
         if let assetIdentifier = result.assetIdentifier {
-            print("🎯 DIRECT ASSET LOADING: Using PHAsset (most reliable method)")
-            loadImageFromPHAsset(identifier: assetIdentifier)
+            loadAssetIfAvailable(assetIdentifier: assetIdentifier, fallbackProvider: provider)
         } else {
-            print("📷 No asset ID, using provider-based loading")
+            photoMetadata = nil
+            updateLocationStatus()
             loadImageFromProvider(provider)
         }
     }
-    
-    // MARK: - Direct PHAsset Loading (Most Reliable)
-    private func loadImageFromPHAsset(identifier: String) {
-        print("📸 Fetching PHAsset for identifier: \(identifier)")
-        
-        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
-        
+
+    private func loadAssetIfAvailable(assetIdentifier: String, fallbackProvider: NSItemProvider) {
+        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetIdentifier], options: nil)
         guard let asset = fetchResult.firstObject else {
-            print("❌ Could not fetch PHAsset")
-            DispatchQueue.main.async {
-                self.hideImageLoadingIndicator()
-                self.showAlert(message: "Could not access photo from library")
-            }
+            photoMetadata = nil
+            updateLocationStatus()
+            loadImageFromProvider(fallbackProvider)
             return
         }
-        
-        print("✅ Got PHAsset, requesting image...")
-        self.selectedAsset = asset
-        
-        // Extract metadata immediately (we have the asset)
-        self.photoMetadata = PhotoMetadataHelper.extractMetadata(from: asset)
-        print("✅ Metadata extracted")
-        if let metadata = self.photoMetadata {
-            print("   Creation date: \(metadata.creationDate?.description ?? "Unknown")")
-            if let location = metadata.location {
-                print("   Location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-            }
-        }
-        
-        // Request the actual image data from Photos framework
+
+        selectedAsset = asset
+        photoMetadata = PhotoMetadataHelper.extractMetadata(from: asset)
+        updateLocationStatus()
+        loadImageFromAsset(asset, fallbackProvider: fallbackProvider)
+    }
+
+    private func loadImageFromAsset(_ asset: PHAsset, fallbackProvider: NSItemProvider) {
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true // Allow iCloud downloads
-        options.isSynchronous = false
+        options.resizeMode = .exact
+        options.isNetworkAccessAllowed = true
         options.version = .current
-        
-        // Request target size - use a reasonable size to avoid memory issues
+
         let targetSize = CGSize(width: 2048, height: 2048)
-        
         PHImageManager.default().requestImage(
             for: asset,
             targetSize: targetSize,
             contentMode: .aspectFit,
             options: options
         ) { [weak self] image, info in
-            guard let self = self else { return }
-            
-            DispatchQueue.main.async {
-                self.hideImageLoadingIndicator()
-            }
-            
-            // Check for errors
-            if let error = info?[PHImageErrorKey] as? Error {
-                print("❌ PHImageManager error: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.showAlert(message: "Failed to load image from Photos library")
-                }
-                return
-            }
-            
-            // Check if image is in iCloud and downloading
-            if let isInCloud = info?[PHImageResultIsInCloudKey] as? Bool, isInCloud {
-                print("☁️ Image is in iCloud, downloading...")
-                // The request will retry automatically with isNetworkAccessAllowed = true
-                return
-            }
-            
-            // Check if this is the final image (not a degraded preview)
+            guard let self else { return }
+
             let isDegraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
-            if isDegraded {
-                print("⏳ Received degraded preview, waiting for full quality...")
+            let isCancelled = (info?[PHImageCancelledKey] as? Bool) ?? false
+            let isInCloud = (info?[PHImageResultIsInCloudKey] as? Bool) ?? false
+            let error = info?[PHImageErrorKey] as? Error
+
+            if let image, !isDegraded {
+                print("✅ PhotoKit returned the selected image")
+                self.finishImageLoading(with: image)
                 return
             }
-            
-            guard let image = image else {
-                print("❌ No image returned from PHImageManager")
-                DispatchQueue.main.async {
-                    self.showAlert(message: "Failed to load image")
+
+            if isCancelled || error != nil || (!isDegraded && !isInCloud) {
+                if let error {
+                    print("⚠️ PhotoKit image request failed: \(error.localizedDescription)")
                 }
+                self.loadContentEditingImage(from: asset, fallbackProvider: fallbackProvider)
+            }
+        }
+    }
+
+    private func loadContentEditingImage(from asset: PHAsset, fallbackProvider: NSItemProvider) {
+        let options = PHContentEditingInputRequestOptions()
+        options.isNetworkAccessAllowed = true
+
+        asset.requestContentEditingInput(with: options) { [weak self] input, info in
+            guard let self else { return }
+
+            if let image = input?.displaySizeImage,
+               image.size.width > 0,
+               image.size.height > 0 {
+                print("✅ Loaded PhotoKit display-size image")
+                self.finishImageLoading(with: image)
                 return
             }
-            
-            print("✅ PHAsset image loaded successfully!")
-            print("   Size: \(image.size.width) x \(image.size.height)")
-            print("   Scale: \(image.scale)")
-            
-            DispatchQueue.main.async {
-                self.selectedImage = image
-                self.imageView.image = image
-                print("✅ Image displayed in imageView")
+
+            if let url = input?.fullSizeImageURL,
+               let image = self.decodeImage(at: url) {
+                print("✅ Loaded PhotoKit full-size image")
+                self.finishImageLoading(with: image)
+                return
+            }
+
+            if let error = info[PHContentEditingInputErrorKey] as? Error {
+                print("⚠️ Content editing input failed: \(error.localizedDescription)")
+            }
+            self.loadImageFromProvider(fallbackProvider)
+        }
+    }
+
+    private func decodeImage(at url: URL) -> UIImage? {
+        if let image = UIImage(contentsOfFile: url.path),
+           image.size.width > 0,
+           image.size.height > 0 {
+            return image
+        }
+
+        guard let ciImage = CIImage(contentsOf: url) else { return nil }
+        let context = CIContext(options: [.cacheIntermediates: false])
+        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return nil }
+        return UIImage(cgImage: cgImage)
+    }
+
+    private func updateLocationStatus() {
+        DispatchQueue.main.async {
+            if self.photoMetadata?.location != nil {
+                self.locationStatusLabel.text = "The photo's saved location will be included."
+                self.useCurrentLocationButton.isHidden = true
+            } else {
+                self.locationStatusLabel.text = "No location is stored in this photo."
+                self.useCurrentLocationButton.isHidden = false
             }
         }
     }
     
-    // MARK: - Provider-Based Loading (Fallback for non-library images)
+    // MARK: - Provider-Based Loading
     private func loadImageFromProvider(_ provider: NSItemProvider) {
-        print("📷 Loading from provider (screenshots, downloads, etc.)")
-        
-        guard provider.canLoadObject(ofClass: UIImage.self) else {
-            print("❌ Provider cannot load UIImage")
-            DispatchQueue.main.async {
-                self.hideImageLoadingIndicator()
-                self.showAlert(message: "Cannot load this image type")
-            }
+        let imageTypeIdentifiers = provider.registeredTypeIdentifiers.filter { identifier in
+            UTType(identifier)?.conforms(to: .image) == true
+        }
+
+        guard !imageTypeIdentifiers.isEmpty else {
+            finishImageLoading(with: nil, errorMessage: "The selected item does not contain a supported image.")
             return
         }
-        
-        print("📷 Using loadObject(ofClass: UIImage.self)...")
-        
+
+        // Loading the exact registered representation avoids unreliable HEIC-to-JPEG
+        // conversions, particularly when an iOS app runs on Apple silicon Mac.
+        loadDataRepresentation(
+            from: provider,
+            typeIdentifiers: imageTypeIdentifiers,
+            index: 0
+        )
+    }
+
+    private func loadDataRepresentation(
+        from provider: NSItemProvider,
+        typeIdentifiers: [String],
+        index: Int
+    ) {
+        guard index < typeIdentifiers.count else {
+            loadFileRepresentation(from: provider, typeIdentifiers: typeIdentifiers, index: 0)
+            return
+        }
+
+        let typeIdentifier = typeIdentifiers[index]
+        provider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { [weak self] data, error in
+            guard let self else { return }
+
+            if let data, let image = UIImage(data: data), image.size.width > 0, image.size.height > 0 {
+                print("✅ Loaded image data as \(typeIdentifier)")
+                self.finishImageLoading(with: image)
+                return
+            }
+
+            if let error {
+                print("⚠️ Data representation \(typeIdentifier) failed: \(error.localizedDescription)")
+            }
+            self.loadDataRepresentation(from: provider, typeIdentifiers: typeIdentifiers, index: index + 1)
+        }
+    }
+
+    private func loadFileRepresentation(
+        from provider: NSItemProvider,
+        typeIdentifiers: [String],
+        index: Int
+    ) {
+        guard index < typeIdentifiers.count else {
+            loadUIImageObject(from: provider)
+            return
+        }
+
+        let typeIdentifier = typeIdentifiers[index]
+        provider.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { [weak self] url, error in
+            guard let self else { return }
+
+            if let url,
+               let data = try? Data(contentsOf: url),
+               let image = UIImage(data: data),
+               image.size.width > 0,
+               image.size.height > 0 {
+                print("✅ Loaded image file as \(typeIdentifier)")
+                self.finishImageLoading(with: image)
+                return
+            }
+
+            if let error {
+                print("⚠️ File representation \(typeIdentifier) failed: \(error.localizedDescription)")
+            }
+            self.loadFileRepresentation(from: provider, typeIdentifiers: typeIdentifiers, index: index + 1)
+        }
+    }
+
+    private func loadUIImageObject(from provider: NSItemProvider) {
+        guard provider.canLoadObject(ofClass: UIImage.self) else {
+            finishImageLoading(with: nil, errorMessage: "The selected image format could not be decoded.")
+            return
+        }
+
         provider.loadObject(ofClass: UIImage.self) { [weak self] object, error in
-            guard let self = self else { return }
-            
-            DispatchQueue.main.async {
-                self.hideImageLoadingIndicator()
+            guard let self else { return }
+            if let image = object as? UIImage, image.size.width > 0, image.size.height > 0 {
+                self.finishImageLoading(with: image)
+            } else {
+                let detail = error?.localizedDescription ?? "No compatible image representation was returned."
+                print("❌ All image loading strategies failed: \(detail)")
+                self.finishImageLoading(
+                    with: nil,
+                    errorMessage: "This photo could not be decoded. Try exporting it as JPEG or PNG and selecting it again."
+                )
             }
-            
-            if let error = error {
-                print("❌ Failed to load image: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.showAlert(message: "Failed to load image. Please try again.")
-                }
-                return
-            }
-            
-            guard let image = object as? UIImage else {
-                print("❌ Object is not a UIImage")
-                DispatchQueue.main.async {
-                    self.showAlert(message: "Invalid image format")
-                }
-                return
-            }
-            
-            guard image.size.width > 0 && image.size.height > 0 else {
-                print("❌ Invalid image dimensions")
-                DispatchQueue.main.async {
-                    self.showAlert(message: "Invalid image size")
-                }
-                return
-            }
-            
-            print("✅ Provider image loaded successfully!")
-            print("   Size: \(image.size.width) x \(image.size.height)")
-            
-            DispatchQueue.main.async {
+        }
+    }
+
+    private func finishImageLoading(with image: UIImage?, errorMessage: String? = nil) {
+        DispatchQueue.main.async {
+            self.hideImageLoadingIndicator()
+            if let image {
                 self.selectedImage = image
                 self.imageView.image = image
-                print("✅ Image displayed in imageView")
+                print("✅ Image displayed: \(image.size.width) x \(image.size.height)")
+            } else if let errorMessage {
+                self.showAlert(message: errorMessage)
             }
         }
     }
@@ -439,5 +625,30 @@ extension CreatePostViewController: PHPickerViewControllerDelegate {
         imageLoadingIndicator?.removeFromSuperview()
         imageLoadingIndicator = nil
         print("✅ Image loading indicator hidden")
+    }
+}
+
+// MARK: - CLLocationManagerDelegate
+extension CreatePostViewController: CLLocationManagerDelegate {
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
+            locationStatusLabel.text = "Finding your current location…"
+            manager.requestLocation()
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        var metadata = photoMetadata ?? PhotoMetadata()
+        metadata.location = location
+        photoMetadata = metadata
+        locationStatusLabel.text = "Your current location will be included."
+        useCurrentLocationButton.isHidden = true
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        locationStatusLabel.text = "Current location could not be determined."
+        useCurrentLocationButton.isHidden = false
+        showAlert(message: "Could not determine your current location: \(error.localizedDescription)")
     }
 }

@@ -138,7 +138,7 @@ class FeedViewController: UIViewController {
                 
                 // Query posts, sorted by newest first
                 let query = Post.query()
-                    .include(["user", "imageFile"])  // Include related objects
+                    .include("user")
                     .order([.descending("createdAt")])
                     .limit(postsPerPage)
                     .skip(currentPage * postsPerPage)
