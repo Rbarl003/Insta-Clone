@@ -149,31 +149,8 @@ class LoginViewController: UIViewController {
     }
     
     @objc private func signUpTapped() {
-        guard let username = usernameTextField.text, !username.isEmpty,
-              let password = passwordTextField.text, !password.isEmpty else {
-            showAlert(message: "Please enter username and password")
-            return
-        }
-        
-        var newUser = User()
-        newUser.username = username
-        newUser.password = password
-        
-        Task {
-            do {
-                let signedUpUser = try await newUser.signup()
-                print("User signed up: \(signedUpUser.username ?? "")")
-                
-                // Navigate to main app
-                await MainActor.run {
-                    navigateToMainApp()
-                }
-            } catch {
-                await MainActor.run {
-                    showAlert(message: "Sign up failed: \(error.localizedDescription)")
-                }
-            }
-        }
+        let signUpViewController = SignUpViewController()
+        navigationController?.pushViewController(signUpViewController, animated: true)
     }
     
     // MARK: - Navigation

@@ -32,9 +32,24 @@ class CreatePostViewController: UIViewController {
         return imageView
     }()
     
-    private let selectImageButton: UIButton = {
+    private let libraryButton: UIButton = {
         let button = UIButton(type: .system)
-        button.setTitle("Select Image", for: .normal)
+        var configuration = UIButton.Configuration.bordered()
+        configuration.title = "Library"
+        configuration.image = UIImage(systemName: "photo")
+        configuration.imagePadding = 6
+        button.configuration = configuration
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
+    }()
+
+    private let cameraButton: UIButton = {
+        let button = UIButton(type: .system)
+        var configuration = UIButton.Configuration.bordered()
+        configuration.title = "Camera"
+        configuration.image = UIImage(systemName: "camera")
+        configuration.imagePadding = 6
+        button.configuration = configuration
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
     }()
@@ -70,8 +85,12 @@ class CreatePostViewController: UIViewController {
     
     private let postButton: UIButton = {
         let button = UIButton(type: .system)
-        button.setTitle("Post", for: .normal)
-        button.titleLabel?.font = .boldSystemFont(ofSize: 18)
+        var configuration = UIButton.Configuration.filled()
+        configuration.title = "Share"
+        configuration.image = UIImage(systemName: "square.and.arrow.up")
+        configuration.imagePadding = 6
+        configuration.cornerStyle = .medium
+        button.configuration = configuration
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
     }()
@@ -93,41 +112,49 @@ class CreatePostViewController: UIViewController {
             action: #selector(cancelTapped)
         )
         
+        captionTextView.text = ""
+        captionTextView.accessibilityLabel = "Write a caption"
+
+        let actionStack = UIStackView(arrangedSubviews: [libraryButton, cameraButton, postButton])
+        actionStack.axis = .horizontal
+        actionStack.alignment = .fill
+        actionStack.distribution = .fillEqually
+        actionStack.spacing = 8
+        actionStack.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(actionStack)
+        view.addSubview(captionTextView)
         view.addSubview(imageView)
-        view.addSubview(selectImageButton)
         view.addSubview(locationStatusLabel)
         view.addSubview(useCurrentLocationButton)
-        view.addSubview(captionTextView)
-        view.addSubview(postButton)
-        
+
         NSLayoutConstraint.activate([
-            imageView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
-            imageView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            imageView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            imageView.heightAnchor.constraint(equalToConstant: 260),
-            
-            selectImageButton.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 16),
-            selectImageButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            
-            locationStatusLabel.topAnchor.constraint(equalTo: selectImageButton.bottomAnchor, constant: 8),
-            locationStatusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            locationStatusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            actionStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+            actionStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            actionStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            actionStack.heightAnchor.constraint(equalToConstant: 44),
+
+            captionTextView.topAnchor.constraint(equalTo: actionStack.bottomAnchor, constant: 12),
+            captionTextView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            captionTextView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            captionTextView.heightAnchor.constraint(equalToConstant: 72),
+
+            imageView.topAnchor.constraint(equalTo: captionTextView.bottomAnchor, constant: 12),
+            imageView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            imageView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            imageView.heightAnchor.constraint(equalTo: imageView.widthAnchor),
+
+            locationStatusLabel.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 10),
+            locationStatusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            locationStatusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
             useCurrentLocationButton.topAnchor.constraint(equalTo: locationStatusLabel.bottomAnchor, constant: 4),
             useCurrentLocationButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-
-            captionTextView.topAnchor.constraint(equalTo: useCurrentLocationButton.bottomAnchor, constant: 12),
-            captionTextView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            captionTextView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            captionTextView.heightAnchor.constraint(equalToConstant: 100),
-            
-            postButton.topAnchor.constraint(equalTo: captionTextView.bottomAnchor, constant: 20),
-            postButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            postButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            postButton.heightAnchor.constraint(equalToConstant: 44)
+            useCurrentLocationButton.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
         ])
-        
-        selectImageButton.addTarget(self, action: #selector(selectImageTapped), for: .touchUpInside)
+
+        libraryButton.addTarget(self, action: #selector(libraryTapped), for: .touchUpInside)
+        cameraButton.addTarget(self, action: #selector(cameraTapped), for: .touchUpInside)
         useCurrentLocationButton.addTarget(self, action: #selector(useCurrentLocationTapped), for: .touchUpInside)
         postButton.addTarget(self, action: #selector(postTapped), for: .touchUpInside)
         locationManager.delegate = self
@@ -135,7 +162,36 @@ class CreatePostViewController: UIViewController {
     }
     
     // MARK: - Actions
-    @objc private func selectImageTapped() {
+    @objc private func libraryTapped() {
+        requestPhotoLibraryAccess()
+    }
+
+    @objc private func cameraTapped() {
+        presentCamera()
+    }
+
+    private func presentCamera() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showAlert(message: "The camera is not available on this device.")
+            return
+        }
+
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        picker.mediaTypes = [UTType.image.identifier]
+        picker.allowsEditing = false
+        picker.delegate = self
+
+        if UIImagePickerController.isCameraDeviceAvailable(.rear) {
+            picker.cameraDevice = .rear
+        }
+
+        picker.modalPresentationStyle = .fullScreen
+        present(picker, animated: true)
+    }
+
+    private func requestPhotoLibraryAccess() {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard status == .notDetermined else {
             presentPhotoPicker()
@@ -205,7 +261,7 @@ class CreatePostViewController: UIViewController {
         view.addSubview(activityIndicator)
         view.isUserInteractionEnabled = false
         
-        Task {
+        Task { @MainActor in
             var uploadStage = "image file"
             do {
                 print("🚀 Starting post creation...")
@@ -275,6 +331,14 @@ class CreatePostViewController: UIViewController {
                 print("   Location GeoPoint: \(savedPost.location != nil ? "YES" : "NO")")
                 print("   Image File: \(savedPost.imageFile?.url?.absoluteString ?? "none")")
                 
+                uploadStage = "user's last-post date"
+                guard var currentUser = User.current else {
+                    throw PostCreationError.missingCurrentUser
+                }
+                currentUser.lastPostedDate = savedPost.createdAt ?? Date()
+                let savedUser = try await currentUser.save()
+                print("✅ Updated lastPostedDate: \(savedUser.lastPostedDate?.description ?? "none")")
+
                 // Notify other parts of the app that a new post was created so they can refresh immediately
                 print("📢 Posting didCreatePost notification to refresh feed...")
                 NotificationCenter.default.post(name: .didCreatePost, object: savedPost)
@@ -342,7 +406,17 @@ extension CreatePostViewController: UIImagePickerControllerDelegate, UINavigatio
         selectedImage = image
         imageView.image = image
 
-        if let asset = info[.phAsset] as? PHAsset {
+        if picker.sourceType == .camera {
+            selectedAsset = nil
+            var metadata = PhotoMetadata()
+            metadata.creationDate = Date()
+            metadata.width = Int(image.size.width * image.scale)
+            metadata.height = Int(image.size.height * image.scale)
+            photoMetadata = metadata
+            locationStatusLabel.text = "Finding the photo's location…"
+            postButton.isEnabled = false
+            useCurrentLocationTapped()
+        } else if let asset = info[.phAsset] as? PHAsset {
             selectedAsset = asset
             photoMetadata = PhotoMetadataHelper.extractMetadata(from: asset)
         } else {
@@ -634,6 +708,10 @@ extension CreatePostViewController: CLLocationManagerDelegate {
         if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
             locationStatusLabel.text = "Finding your current location…"
             manager.requestLocation()
+        } else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted {
+            locationStatusLabel.text = "Location access is disabled."
+            useCurrentLocationButton.isHidden = false
+            postButton.isEnabled = true
         }
     }
 
@@ -644,11 +722,21 @@ extension CreatePostViewController: CLLocationManagerDelegate {
         photoMetadata = metadata
         locationStatusLabel.text = "Your current location will be included."
         useCurrentLocationButton.isHidden = true
+        postButton.isEnabled = true
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         locationStatusLabel.text = "Current location could not be determined."
         useCurrentLocationButton.isHidden = false
+        postButton.isEnabled = true
         showAlert(message: "Could not determine your current location: \(error.localizedDescription)")
+    }
+}
+
+private enum PostCreationError: LocalizedError {
+    case missingCurrentUser
+
+    var errorDescription: String? {
+        "The post was uploaded, but the signed-in user could not be updated. Please sign in again."
     }
 }

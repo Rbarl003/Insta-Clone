@@ -23,7 +23,6 @@ struct User: ParseUser {
     var password: String?
     var authData: [String: [String: String]?]?
     
-    // Custom properties (add any additional user properties here)
-    // Example: var profileImageFile: ParseFile?
-    // Example: var displayName: String?
+    // The server-backed time of the user's most recent successful post.
+    var lastPostedDate: Date?
 }

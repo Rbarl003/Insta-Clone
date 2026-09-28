@@ -1,176 +1,54 @@
-# Project 2 - Instagram-like Parse App
+# Project 3 - *InstaParse*
 
-## Setup Instructions
+Submitted by: **Ritch Barlatier**
 
-### 1. Install ParseSwift via Swift Package Manager
+**InstaParse** is a photo-sharing app that lets users create an account, capture or select photos, attach captions and location information, and view recent posts after contributing their own.
 
-1. In Xcode, g5 to **File > Add Package Dependencies...**
-2. Enter the ParseSwift repository URL: `https://github.com/parse-community/Parse-Swift`
-3. Select the latest version and click **Add Package**
-4. Make sure ParseSwift is added to your target
+Time spent: **5** hours spent in total
 
-### 2. Configure Back4App Credentials
+## Required Features
 
-Open `AppDelegate.swift` and replace the placeholder values with your Back4App credentials:
+The following **required** functionality is completed:
 
-```swift
-ParseSwift.initialize(
-    applicationId: "YOUR_APP_ID_HERE",        // Replace with your App ID
-    clientKey: "YOUR_CLIENT_KEY_HERE",        // Replace with your Client Key
-    serverURL: URL(string: "https://parseapi.back4app.com")!
-)
-```
+- [x] User can launch camera to take photo instead of photo library
+  - [ ] Users without iPhones to demo this feature can manually add unique photos to their simulator’s Photos app
+- [x] Posts have a time and location attached to them
+- [x] Users are not able to see other users’ photos until they upload their own.
 
-You can find these credentials in your Back4App dashboard:
-- Go to https://www.back4app.com/
-- Select your app
-- Go to **App Settings > Security & Keys**
-- Copy the **Application ID** and **Client Key**
+The following **optional** features are implemented:
 
-### 3. Configure Info.plist for Photo Access
+- [x] Posts have a comment section, which displays the commenter’s username and comment context
+- [x] User receives notification when it is time to post
 
-Add the following privacy descriptions to your `Info.plist`:
+The following **additional** features are implemented:
 
-```xml
-<key>NSPhotoLibraryUsageDescription</key>
-<string>We need access to your photo library to upload images</string>
-```
-
-### 4. Project Structure
-
-The project includes the following files:
-
-- **AppDelegate.swift** - Parse initialization
-- **SceneDelegate.swift** - Root view controller management (login vs feed)
-- **User.swift** - Parse User model
-- **Post.swift** - Parse Post model
-- **LoginViewController.swift** - Login and signup screen
-- **FeedViewController.swift** - Main feed with infinite scroll
-- **CreatePostViewController.swift** - Create new posts with images
-- **PostCell.swift** - Custom table view cell (embedded in FeedViewController)
-
-### 5. Features Implemented
-
-✅ **User Authentication**
-- Sign up new users
-- Log in existing users
-- Log out
-- Persist login session
-
-✅ **Posts Feed**
-- Display posts in a table view
-- Infinite scroll pagination (loads 10 posts at a time)
-- Pull to refresh
-- Show username, image, caption, and relative timestamp
-
-✅ **Create Posts**
-- Select images from photo library
-- Add captions
-- Upload to Parse
-
-### 6. Key Parse Concepts Used
-
-**Querying Posts:**
-```swift
-var query = Post.query()
-    .include("user")  // Include user data
-    .order([.descending("createdAt")])  // Sort by newest
-    .limit(10)  // Pagination
-    .skip(page * 10)
-
-let posts = try await query.find()
-```
-
-**Creating a Post:**
-```swift
-var post = Post()
-post.caption = "My caption"
-post.imageFile = ParseFile(name: "photo.jpg", data: imageData)
-post.user = User.current
-
-try await post.save()
-```
-
-**User Signup:**
-```swift
-var user = User()
-user.username = "username"
-user.password = "password"
-try await user.signup()
-```
-
-**User Login:**
-```swift
-try await User.login(username: "username", password: "password")
-```
-
-**User Logout:**
-```swift
-try await User.logout()
-```
-
-### 7. Running the App
-
-1. Make sure you've added your Back4App credentials
-2. Build and run the app
-3. You'll see the login screen
-4. Create a new account or login
-5. View the feed (will be empty initially)
-6. Tap the compose button to create a post
-7. Select an image and add a caption
-8. Posts will appear in the feed
-
-### 8. Back4App Dashboard
-
-You can view your data in the Back4App dashboard:
-- Go to **Database > Browser**
-- You'll see tables for `User` and `Post`
-- Click on each to view the stored data
-
-## Customization
-
-Feel free to extend the models with additional properties:
-
-**User.swift:**
-```swift
-var displayName: String?
-var profileImageFile: ParseFile?
-var bio: String?
-```
-
-**Post.swift:**
-```swift
-var likesCount: Int?
-var commentsCount: Int?
-var location: String?
-```
-
-## Requirements
-
-- iOS 15.0+
-- Xcode 14.0+
-- Swift 5.7+
-- ParseSwift package
-
-## Troubleshooting
-
-**Issue: "Cannot find type 'ParseSwift'"**
-- Make sure you've added the ParseSwift package via SPM
-
-**Issue: "Request failed: unauthorized"**
-- Check your App ID and Client Key are correct
-
-**Issue: Photo picker doesn't appear**
-- Make sure you've added NSPhotoLibraryUsageDescription to Info.plist
-
-**Issue: App crashes on launch**
-- Check that Parse is initialized before any Parse operations
-- Verify your serverURL is correct
-
+- [x] Users can sign up with a username, email, and password
+- [x] Users can log in and log out
+- [x] Users can add captions to posts
+- [x] Users can select photos from their photo library
+- [x] The feed supports pull-to-refresh
+- [x] Images are cached for smoother feed performance
 
 ## Video Walkthrough
 
-Watch a short video walkthrough of the project here:
+[View the InstaParse video walkthrough on Loom](https://www.loom.com/share/f62d5891eed6498d8c5deb27fe48f44f)
 
-https://www.loom.com/share/f317044221454a509f3ebc14289bc9e0
+## Notes
 
+Challenges encountered while building the app included extracting photo metadata, resolving readable location names, handling camera and photo-library permissions, uploading images reliably to Parse, and keeping the feed synchronized after a new post is created.
+
+## License
+
+    Copyright 2026 Ritch Barlatier
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.

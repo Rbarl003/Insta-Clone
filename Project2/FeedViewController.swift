@@ -38,17 +38,9 @@ class FeedViewController: UIViewController {
     private let tableView = UITableView()
     private var posts: [Post] = []
     private var isLoading = false
-    private var currentPage = 0
-    private let postsPerPage = 10
+    private let maximumPostCount = 10
     
     private let refreshControl = UIRefreshControl()
-    
-    private let footerLoadingIndicator: UIActivityIndicatorView = {
-        let spinner = UIActivityIndicatorView(style: .medium)
-        spinner.frame = CGRect(x: 0, y: 0, width: 0, height: 60)
-        spinner.hidesWhenStopped = true
-        return spinner
-    }()
     
     // MARK: - Lifecycle
     override func viewDidLoad() {
@@ -84,24 +76,21 @@ class FeedViewController: UIViewController {
     // MARK: - Setup
     private func setupUI() {
         view.backgroundColor = .systemBackground
-        title = "Feed"
-        
-        // Setup logout button
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            title: "Logout",
+        title = "InstaParse"
+
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            title: "Log Out",
             style: .plain,
             target: self,
             action: #selector(logoutTapped)
         )
-        
-        // Setup compose button with camera icon
-        let cameraButton = UIBarButtonItem(
-            image: UIImage(systemName: "camera.fill"),
+
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "plus.square"),
             style: .plain,
             target: self,
             action: #selector(composeTapped)
         )
-        navigationItem.leftBarButtonItem = cameraButton
         
         // Setup table view
         view.addSubview(tableView)
@@ -117,31 +106,26 @@ class FeedViewController: UIViewController {
         refreshControl.addTarget(self, action: #selector(refreshPosts), for: .valueChanged)
         tableView.refreshControl = refreshControl
         
-        // Setup footer loading indicator
-        tableView.tableFooterView = footerLoadingIndicator
+        tableView.tableFooterView = UIView()
     }
     
     // MARK: - Data Loading
     private func loadPosts(refresh: Bool = false) {
         guard !isLoading else { return }
         
-        if refresh {
-            currentPage = 0
-        }
-        
         isLoading = true
-        footerLoadingIndicator.startAnimating()
         
-        Task {
+        Task { @MainActor in
             do {
-                print("🔄 Loading posts (refresh: \(refresh), page: \(currentPage))...")
+                print("🔄 Loading the 10 most recent posts from the last 24 hours...")
+                let twentyFourHoursAgo = Date().addingTimeInterval(-24 * 60 * 60)
                 
                 // Query posts, sorted by newest first
                 let query = Post.query()
                     .include("user")
                     .order([.descending("createdAt")])
-                    .limit(postsPerPage)
-                    .skip(currentPage * postsPerPage)
+                    .where("createdAt" >= twentyFourHoursAgo)
+                    .limit(maximumPostCount)
                 
                 // ParseSwift queries always fetch from server by default
                 // No need for explicit cache policy
@@ -149,15 +133,8 @@ class FeedViewController: UIViewController {
                 print("✅ Loaded \(fetchedPosts.count) posts from server")
                 
                 await MainActor.run {
-                    if refresh {
-                        self.posts = fetchedPosts
-                    } else {
-                        self.posts.append(contentsOf: fetchedPosts)
-                    }
-                    
-                    self.currentPage += 1
+                    self.posts = fetchedPosts
                     self.isLoading = false
-                    self.footerLoadingIndicator.stopAnimating()
                     self.tableView.reloadData()
                     self.refreshControl.endRefreshing()
                 }
@@ -165,7 +142,6 @@ class FeedViewController: UIViewController {
                 await MainActor.run {
                     print("Error loading posts: \(error.localizedDescription)")
                     self.isLoading = false
-                    self.footerLoadingIndicator.stopAnimating()
                     self.refreshControl.endRefreshing()
                     self.showAlert(message: "Failed to load posts: \(error.localizedDescription)")
                 }
@@ -185,7 +161,7 @@ class FeedViewController: UIViewController {
     }
     
     @objc private func logoutTapped() {
-        Task {
+        Task { @MainActor in
             do {
                 try await User.logout()
                 
@@ -236,13 +212,6 @@ extension FeedViewController: UITableViewDataSource {
 
 // MARK: - UITableViewDelegate
 extension FeedViewController: UITableViewDelegate {
-    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        // Trigger infinite scroll when reaching the last few cells
-        let threshold = posts.count - 3
-        if indexPath.row >= threshold {
-            loadPosts()
-        }
-    }
 }
 
 // MARK: - PostCell
@@ -266,6 +235,13 @@ class PostCell: UITableViewCell {
         imageView.backgroundColor = .systemGray5
         imageView.translatesAutoresizingMaskIntoConstraints = false
         return imageView
+    }()
+
+    private let blurView: UIVisualEffectView = {
+        let view = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+        view.isUserInteractionEnabled = false
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
     }()
     
     private let captionLabel: UILabel = {
@@ -308,11 +284,13 @@ class PostCell: UITableViewCell {
         imageLoadTask = nil
         currentImageURL = nil
         postImageView.image = nil
+        blurView.isHidden = false
     }
     
     private func setupUI() {
         contentView.addSubview(usernameLabel)
         contentView.addSubview(postImageView)
+        contentView.addSubview(blurView)
         contentView.addSubview(captionLabel)
         contentView.addSubview(dateLabel)
         contentView.addSubview(locationLabel)
@@ -326,6 +304,11 @@ class PostCell: UITableViewCell {
             postImageView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             postImageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             postImageView.heightAnchor.constraint(equalToConstant: 300),
+
+            blurView.topAnchor.constraint(equalTo: postImageView.topAnchor),
+            blurView.leadingAnchor.constraint(equalTo: postImageView.leadingAnchor),
+            blurView.trailingAnchor.constraint(equalTo: postImageView.trailingAnchor),
+            blurView.bottomAnchor.constraint(equalTo: postImageView.bottomAnchor),
             
             captionLabel.topAnchor.constraint(equalTo: postImageView.bottomAnchor, constant: 12),
             captionLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
@@ -343,6 +326,8 @@ class PostCell: UITableViewCell {
     }
     
     func configure(with post: Post) {
+        updateBlurVisibility(for: post)
+
         // Set username
         usernameLabel.text = post.user?.username ?? "Unknown"
         
@@ -441,5 +426,16 @@ class PostCell: UITableViewCell {
         } else {
             print("❌ No imageFile URL in post")
         }
+    }
+
+    private func updateBlurVisibility(for post: Post) {
+        guard let lastPostedDate = User.current?.lastPostedDate,
+              let postCreatedDate = post.createdAt else {
+            blurView.isHidden = false
+            return
+        }
+
+        let difference = abs(lastPostedDate.timeIntervalSince(postCreatedDate))
+        blurView.isHidden = difference <= 24 * 60 * 60
     }
 }
